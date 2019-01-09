@@ -6,6 +6,7 @@
 #include <QDebug>
 #include "synchrolibrary.h"
 #include <QFile>
+#include <QUuid>
 
 int main(int argc, char *argv[])
 {
@@ -232,6 +233,7 @@ int main(int argc, char *argv[])
     /******************
      *      merge     *
      ******************/
+    /*
     QJsonDocument doc{QJsonDocument::fromJson(R"({
         "id" : "sample1",
         "document" : {
@@ -466,6 +468,131 @@ int main(int argc, char *argv[])
         qDebug() << "unable to open input stream of syncdump.json file";
     }
     qDebug() << "Call to merge successfully executed";
+    */
+    QJsonDocument vonzi_doc{QJsonDocument::fromJson(R"({
+            "id" : "shopping list",
+            "app_info" : {
+                    "value" : "test"
+                    },
+            "data" : [{
+                       "id" : "item1",
+                       "desc" : {
+                        "name" : "Wine",
+                        "quantity" : 1
+                       }
+                     },
+                     {
+                        "id" : "item2",
+                        "desc" : {
+                        "name" : "Pasta",
+                        "quantity" : 2
+                        }
+                      },
+                      {
+                       "id" : "item3",
+                       "desc" : {
+                        "name" : "Water",
+                        "quantity" : 6
+                       }
+                      }
+                    ]
+            })")};
+    std::filebuf fb;
+    fb.open("d:\\Google_Drive\\shoppinglist.sync.json", std::ios::out);
+    std::ostream os(&fb);
+    QMap<QString, QVariant> vonzi_app_settings;
+    QString vonzi_uuid{QUuid::createUuid().toString()};
+    qDebug() << "Vonzi ID:" << vonzi_uuid;
+    vonzi_app_settings.insert("instance_id", vonzi_uuid);
+    vonzi_app_settings.insert("name", "shopping_list");
+    vonzi_app_settings.insert("owner", "vonzi");
+    vonzi_app_settings.insert("description", "shopping_list_vonzi");
+    vonzi_app_settings.insert("uniqueid_keys", "id,name,type");
+    vonzi_app_settings.insert("syncdata_path", "app_info,syncdata");
+    QString error;
+    write_sync_json(vonzi_doc.object(), os, vonzi_app_settings, &error);
+    fb.close();
+    if (error.isEmpty())
+        qDebug() << "Sync JSON successfully written";
+    else
+        qDebug() << "Error when calling write sync json:" << error;
+
+    std::ifstream is("d:\\Google_Drive\\shoppinglist.sync.json", std::ifstream::in);
+    QJsonObject json_obj;
+    if (is) {
+        json_obj = read_sync_json(is, vonzi_app_settings, &error);
+        if (json_obj.isEmpty()) {
+            qDebug() << "Got an error during read sync json:" << error;
+            return 0;
+        }
+        qDebug() << "Sync JSON succesfully read";
+        is.close();
+    }
+    QJsonDocument vivi_doc{QJsonDocument::fromJson(R"({
+            "id" : "shopping list",
+            "app_info" : {
+                    "value" : "test"
+                    },
+            "data" : [{
+                       "id" : "item1",
+                       "desc" : {
+                        "name" : "Wine",
+                        "quantity" : 1
+                       }
+                     },
+                     {
+                        "id" : "item2",
+                        "desc" : {
+                        "name" : "Pasta",
+                        "quantity" : 4
+                        }
+                      },
+                      {
+                       "id" : "item3",
+                       "desc" : {
+                        "name" : "Water",
+                        "quantity" : 6
+                       }
+                      },
+                       {
+                        "id" : "item4",
+                        "desc" : {
+                         "name" : "Bananas",
+                         "quantity" : 3
+                        }
+                       }
+                    ]
+            })")};
+    fb.open("d:\\Google_Drive\\shoppinglist_vivi.sync.json", std::ios::out);
+    QMap<QString, QVariant> vivi_app_settings;
+    QString vivi_uuid{QUuid::createUuid().toString()};
+    qDebug() << "Vivi ID:" << vivi_uuid;
+    vivi_app_settings.insert("instance_id", vivi_uuid);
+    vivi_app_settings.insert("name", "shopping_list");
+    vivi_app_settings.insert("owner", "vivi");
+    vivi_app_settings.insert("description", "shopping_list_vivi");
+    vivi_app_settings.insert("uniqueid_keys", "id,name,type");
+    vivi_app_settings.insert("syncdata_path", "app_info,syncdata");
+    write_sync_json(vivi_doc.object(), os, vivi_app_settings, &error);
+    fb.close();
+    if (!error.isEmpty())
+        qDebug() << "Error when calling write sync json:" << error;
+    else {
+        qDebug() << "Vivi Sync JSON succesfully written";
+        std::ifstream changed_is("d:\\Google_Drive\\shoppinglist_vivi.sync.json", std::ifstream::in);
+        QJsonObject merged_json_obj = merge(json_obj, changed_is, vivi_app_settings, &error);
+        if (error.isEmpty()) {
+            qDebug() << "JSON successfully merged";
+            QJsonDocument merged_doc(merged_json_obj);
+            QFile json_file("d:\\Google_Drive\\merged.json");
+            json_file.open(QFile::WriteOnly);
+            json_file.write(merged_doc.toJson());
+            json_file.close();
+        }
+        else {
+            qDebug() << "Error when merging JSON:" << error;
+        }
+    }
 
     return 0;
 }
